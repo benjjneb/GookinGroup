@@ -1,0 +1,183 @@
+---
+title: "Explore Tritrichomonas sample metadata"
+author: "BJC"
+date: "6/12/2020"
+output: html_document
+---
+
+## Why are we doing this study/experiment?
+
+Question: Why do some cats infected with Tritrich develop clinical signs of diarrhea but others don't? Is there a shfit in the microbiome that can explain why ancillary antibiotic treatment can improve clinical symptoms even though it does not target Tritrich.
+
+Is there a shift in the microbiome associated with Tritrich that is different than observed in cats w/o Tritrich.
+
+Tritrich -> diarrhea. Treatment works sometimes, but not always. Antibiotic treatment of particular interest?
+
+Not all cats with Tritrich have diarrhea, could the microbiome be modulating the relationship between Tritrich and diarrhea? BUT this dataset may not be appropriate to answer that question due to few cats w/ Tritrich and w/o diarrhea.
+
+Enrollment: Retrospective. Fecal submissions to NCSU Tritrich lab by vets/breeders w/ patients that suspect Tritrich based on clinical signs. A subset of 89 samples was selected based on weeding out certain treatments, including antibiotic treatments. Treatments w/ steroids or diet or probiotics were OK. Lack of treatment history was an exclusion criteria.
+
+Gold standard diagnosis is PCR. What is Sens/Spec on PCR? Thought to be few false positives, but probably lots of false negatives (personal communication, Gookin).
+
+Speculative hypothesis: Tritrich is a copathogen of the real culprit that causes diarrhea. e.g. Trichomonads carry an RNA virus.
+
+Repeatedly noted that almost all cats have diarrhea here and this could reduce our ability to do robust contrasts based on diarrhea symptoms.
+
+## Exploring Tritrich 16S Sample Metadata
+
+Read in the sample metadata:
+
+```{r}
+setwd("~/GookinGroup") # CHANGE ME, to the location of this file on your computer
+mapfn <- "19_JG1-16S-2-q2-gg/19_JG1-16S-2.mapping.R.txt"
+mapdf <- read.table(mapfn, header=TRUE, sep="\t", stringsAsFactors = FALSE)
+head(mapdf)
+```
+
+Looks like everything read in correctly. No rownames at this time.
+
+What are the column names?
+```{r}
+colnames(mapdf)
+```
+
+Pool? Not clear, perhaps has to do with sequencing runs or something. Technical variable.
+Alt? Spayed/Neutered (altered). "fixed"
+AltSex and PCRClinicalSign are hybrid categories.
+FormofCollection: voided (defecation), looped (from rectum), saline flush enema
+
+#Explore the metadata categories
+
+### SampleID
+```{r}
+mapdf$SampleID
+```
+
+SampleID format is: 16S-[AnimalName]-[Barcode1]-[Barcode2]
+
+###Add Animal
+```{r}
+mapdf$Animal <- sapply(strsplit(mapdf$SampleID, "-"), `[`, 2)
+table(mapdf$Animal)
+mapdf$Animal[duplicated(mapdf$Animal)]
+```
+
+Works, but uh oh.... two Lilly's and two Raja's.
+
+```{r}
+mapdf[mapdf$Animal %in% c("Lilly", "Raja"),]
+```
+
+Different animals, same name. 
+**NOTE TO SELF, CONSIDER RESOLVING THESE DUPLICATE NAMES.**
+This could be important when trying to merge ITS/16S data.
+
+###Pool
+```{r}
+table(mapdf$Pool)
+```
+
+We don't totally understand what the "Pool" value is. Check with UNC?
+Mostly all P1, but a few in the different pool P2.
+Consider exploration of pool-level community differences.
+
+### AGE: Agemonths and Lifestage
+```{r}
+table(mapdf$Agemonths, useNA="ifany")
+```
+
+Spread from 3 months up to 192 months (~16 years). Looks like a good number of "juveniles" < 1yr.
+Two animals with unknown age.
+
+```{r}
+table(mapdf$Lifestage)
+```
+
+```{r}
+table(mapdf$Lifestage, mapdf$Agemonths)
+```
+
+Success! All age annotations are consistent with Agemonths.
+
+### Breed
+
+```{r}
+table(mapdf$Breed, useNA="ifany")
+```
+
+Half-ish "Domestic", then a spread of others. Purebred cats are overrepresented vs. a random population, but that is too be expected due to their... situation (source: Jody Gookin).
+
+### Sex and "Fixedness": Sex, Alt, AltSex
+
+```{r}
+table(mapdf$Sex, useNA="ifany")
+```
+
+Even split.
+
+```{r}
+table(mapdf$Alt, useNA="ifany")
+```
+
+Mostly "fixed". Given the reasonably high fraction of young cats, this seems in line with normal population fractions?
+
+Jody Gookin hypothesis: The intact cats are mosty young ones:
+```{r}
+table(mapdf$Alt, mapdf$Lifestage)
+```
+
+```{r}
+foo <- table(mapdf$Alt, mapdf$Lifestage)
+sweep(foo, 1, rowSums(foo), "/")
+```
+
+Gookin hypothesis judged to be correct at least qualitatively.
+
+```{r}
+table( mapdf$Sex, mapdf$Alt, mapdf$AltSex)
+```
+
+Hooray! All consistent.
+
+### FormofCollection
+
+```{r}
+table(mapdf$FormofCollection)
+```
+
+Significant variation in collection, perhaps especially between "voided" (= poop?) and the more invasive forms of collections (Flushed/Looped). 
+**Explore potential systematic effects of this on the overall community composition**
+**ALso look for any confounding with key outcome variables**
+The same DNA is used for community sequencing and the PCR based diagnosis of Tritrich.
+Jody Gookin: It is not impossible that there could be a relationship between clinical signs (and thus that form of diagnosis) and the form of collection.
+
+**Also note, there is another interesting question here about whether certain typoes of collections could be better at detecting important differences, including Tritrich itself. (Jody Gookin: Keenly interested in collection-type differences in efficacy)**
+
+### Diagnosis: PCRResults, Clinicalsigns, PCRClinicalsigns
+
+```{r}
+table(mapdf$PCRResults, useNA="ifany")
+```
+
+Oh... mostly negative!? I wasn't expecting that.
+So, these are just diarrhea cats. Many causes of diarrhea. This is not that surprising for that general population (Jody Gookin).
+
+```{r}
+table(mapdf$Clinicalsigns, useNA="ifany")
+```
+
+High fraction of Diarrhea as expected. A noticeable fraction of Nodeairrhea (1/4). How did those end up in this dataset?
+
+Jody Gookin: Perhaps owners were screening their cats for the disease, possibly because of problems in their larger group of cats ('cattery') and so they are looking for asymptomatic carriers. (Metzere) Note, all cats with a prior abx treatment history for Tritrich were excluded.
+
+Jody Gookin: These samples are all coming from veterinarians, so perhaps little reason to think that there is any major issue with a difference in cohort from a normal vet case load. (Metzere) also little evidence of strings from same facility, most are from individuals. **No evidence of major cattery/institution bias in this dataset**.
+
+There's a map! (that could be created) Could agument mapping file with state info (maybe city?) for each cat.
+
+Check consistency of the data:
+```{r}
+table(mapdf$PCRResults, mapdf$Clinicalsigns, mapdf$PCRClinicalsigns)
+```
+
+Another sign that this is a high quality coded data in the spreadsheet/sample metadata file.
+
